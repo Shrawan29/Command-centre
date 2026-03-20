@@ -1,5 +1,6 @@
 import Submission from "../models/Submission.js";
 import KPI from "../models/KPI.js";
+import mongoose from "mongoose";
 import { collapseWeeklySubmissions, computeKpiMetrics } from "../utils/kpiPerformance.js";
 
 function normalizeWeek(value = "") {
@@ -154,7 +155,14 @@ export const getKPIProgress = async (req, res) => {
   try {
     const { kpiId } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(kpiId)) {
+      return res.status(400).json({ message: "Invalid KPI id" });
+    }
+
     const kpi = await KPI.findById(kpiId);
+    if (!kpi) {
+      return res.status(404).json({ message: "KPI not found" });
+    }
 
     // 🔐 Vendor can only access their own KPI
     if (
@@ -195,6 +203,10 @@ import User from "../models/User.js";
 export const sendKPIReport = async (req, res) => {
   try {
     const { kpiId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(kpiId)) {
+      return res.status(400).json({ message: "Invalid KPI id" });
+    }
 
     const kpi = await KPI.findById(kpiId);
     if (!kpi) {
