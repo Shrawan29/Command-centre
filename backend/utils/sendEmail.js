@@ -1,20 +1,26 @@
 import nodemailer from "nodemailer";
 
 const sendEmail = async (to, subject, text) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  const emailUser = process.env.EMAIL_USER?.trim();
+  const emailPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
+
+  if (!emailUser || !emailPass) {
     throw new Error("Missing EMAIL_USER or EMAIL_PASS environment variable");
   }
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: emailUser,
+      pass: emailPass,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: emailUser,
     to,
     subject,
     text,

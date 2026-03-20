@@ -9,7 +9,13 @@ export function getKPIProgress(kpiId) {
 }
 
 export function sendKPIReport(kpiId) {
-  return apiRequest(`/api/submissions/report/${kpiId}`, { method: 'POST' });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  return apiRequest(`/api/submissions/report/${kpiId}`, {
+    method: 'POST',
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeoutId));
 }
 
 export function getAdminSubmissions(filters = {}) {
