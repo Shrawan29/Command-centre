@@ -245,8 +245,9 @@ Status: ${metrics.status}
 
     res.status(200).json({ message: "Email sent successfully" });
   } catch (error) {
+    console.error("sendKPIReport error:", error);
     res.status(500).json({
-      message: "Error sending email",
+      message: error.message || "Error sending email",
       error: error.message,
     });
   }
