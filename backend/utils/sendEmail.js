@@ -23,9 +23,9 @@ const sendEmail = async (to, subject, text) => {
     tls: {
       servername: "smtp.gmail.com",
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
   });
 
   const mailOptions = {

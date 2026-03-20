@@ -10,7 +10,7 @@ export function getKPIProgress(kpiId) {
 
 export function sendKPIReport(kpiId) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   return apiRequest(`/api/submissions/report/${kpiId}`, {
     method: 'POST',
