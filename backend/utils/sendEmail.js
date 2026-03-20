@@ -1,4 +1,7 @@
 import nodemailer from "nodemailer";
+import dns from "node:dns";
+
+dns.setDefaultResultOrder("ipv4first");
 
 const sendEmail = async (to, subject, text) => {
   const emailUser = process.env.EMAIL_USER?.trim();
@@ -9,10 +12,16 @@ const sendEmail = async (to, subject, text) => {
   }
 
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: {
       user: emailUser,
       pass: emailPass,
+    },
+    tls: {
+      servername: "smtp.gmail.com",
     },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
