@@ -197,11 +197,26 @@ export const sendKPIReport = async (req, res) => {
     const { kpiId } = req.params;
 
     const kpi = await KPI.findById(kpiId);
+    if (!kpi) {
+      return res.status(404).json({ message: "KPI not found" });
+    }
+
+    if (
+      req.user.role === "agency" &&
+      String(kpi.assignedTo) !== String(req.user._id)
+    ) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const user = await User.findById(kpi.assignedTo);
+    if (!user?.email) {
+      return res.status(400).json({ message: "Assigned vendor email is missing" });
+    }
 
     const submissions = await Submission.find({ kpi: kpiId });
+    const collapsedSubmissions = collapseWeeklySubmissions(submissions);
 
-    const metrics = computeKpiMetrics(kpi, submissions);
+    const metrics = computeKpiMetrics(kpi, collapsedSubmissions);
     const performanceLabel = `Actual: ${metrics.actualProgress.toFixed(2)}%\nExpected: ${metrics.expectedProgress.toFixed(2)}%\nPace: ${metrics.meta?.pace?.toFixed?.(2) ?? Number(metrics.meta?.pace || 0).toFixed(2)}%`;
 
     const message = `

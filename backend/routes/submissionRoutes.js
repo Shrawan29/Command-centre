@@ -14,7 +14,7 @@ const router = express.Router();
 // Submit weekly data
 router.post("/", protect, vendorOnly, submitData);
 router.get("/admin", protect, adminOnly, getAdminSubmissions);
-router.get("/report/:kpiId", protect, sendKPIReport);
+router.post("/report/:kpiId", protect, sendKPIReport);
 
 // Get KPI progress
 router.get("/:kpiId", protect, getKPIProgress);

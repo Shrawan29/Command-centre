@@ -9,7 +9,7 @@ export function getKPIProgress(kpiId) {
 }
 
 export function sendKPIReport(kpiId) {
-  return apiRequest(`/api/submissions/report/${kpiId}`);
+  return apiRequest(`/api/submissions/report/${kpiId}`, { method: 'POST' });
 }
 
 export function getAdminSubmissions(filters = {}) {
