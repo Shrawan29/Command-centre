@@ -1,7 +1,7 @@
 import Submission from "../models/Submission.js";
 import KPI from "../models/KPI.js";
 import mongoose from "mongoose";
-import { collapseWeeklySubmissions } from "../utils/kpiPerformance.js";
+import { collapseWeeklySubmissions, computeKpiMetrics } from "../utils/kpiPerformance.js";
 import { buildKpiPortfolioPdfBuffer, buildKpiPortfolioReportEmail } from "../utils/kpiReportEmail.js";
 
 function normalizeWeek(value = "") {
