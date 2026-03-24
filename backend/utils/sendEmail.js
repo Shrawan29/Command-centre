@@ -74,7 +74,28 @@ async function sendWithSmtp({ to, subject, text, emailUser, emailPass }) {
     text,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    const normalizedMessage = String(error?.message || "").toLowerCase();
+
+    if (
+      ["EAUTH", "EENVELOPE"].includes(error?.code) ||
+      normalizedMessage.includes("username") ||
+      normalizedMessage.includes("password") ||
+      normalizedMessage.includes("authentication") ||
+      normalizedMessage.includes("invalid login") ||
+      normalizedMessage.includes("from") ||
+      normalizedMessage.includes("sender")
+    ) {
+      error.code = "EMAIL_CONFIG";
+    } else {
+      error.code = "EMAIL_DELIVERY_FAILED";
+    }
+
+    throw error;
+  }
+
   console.log("Email sent successfully (Gmail SMTP)");
 }
 

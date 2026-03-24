@@ -253,7 +253,7 @@ Status: ${metrics.status}
       });
     }
 
-    if (["EMAIL_DELIVERY_FAILED", "EAUTH", "ECONNECTION", "ETIMEDOUT", "ESOCKET"].includes(error.code)) {
+    if (["EMAIL_DELIVERY_FAILED", "ECONNECTION", "ETIMEDOUT", "ESOCKET"].includes(error.code)) {
       return res.status(502).json({
         message: "Unable to deliver email right now. Please try again shortly.",
       });
