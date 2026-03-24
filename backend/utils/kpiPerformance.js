@@ -15,6 +15,22 @@ function isoWeekString(date) {
   return `${utc.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
+function weekStartDateFromKey(weekKey = "") {
+  const match = String(weekKey).match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const week1Monday = new Date(jan4);
+  week1Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+
+  const weekStart = new Date(week1Monday);
+  weekStart.setUTCDate(week1Monday.getUTCDate() + ((week - 1) * 7));
+  return weekStart;
+}
+
 function startOfIsoWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const day = d.getUTCDay() || 7;
@@ -146,7 +162,32 @@ export function computeKpiMetrics(kpi, submissions, now = new Date()) {
     elapsedUnits = 1;
     unitLabel = "day";
   } else if (frequency === "weekly") {
-    periodSubmissions = safeSubmissions.filter((s) => normalizeWeek(s?.week) === currentWeek);
+    const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
+    const currentWeekStart = startOfIsoWeek(now);
+
+    const currentWeekSubmissions = safeSubmissions.filter((s) => normalizeWeek(s?.week) === currentWeek);
+    if (currentWeekSubmissions.length) {
+      periodSubmissions = currentWeekSubmissions;
+    } else {
+      const monthSubmissions = safeSubmissions.filter((s) => {
+        const normalized = normalizeWeek(s?.week);
+        if (!normalized) return false;
+        const weekStart = weekStartDateFromKey(normalized);
+        if (!weekStart) return false;
+        return weekStart >= monthStart && weekStart <= monthEnd && weekStart <= currentWeekStart;
+      });
+
+      const latestMonthSubmission = monthSubmissions.sort((a, b) => {
+        const aWeek = weekStartDateFromKey(normalizeWeek(a?.week) || "")?.getTime() || 0;
+        const bWeek = weekStartDateFromKey(normalizeWeek(b?.week) || "")?.getTime() || 0;
+        if (aWeek !== bWeek) return bWeek - aWeek;
+        return getSubmissionTime(b) - getSubmissionTime(a);
+      })[0];
+
+      periodSubmissions = latestMonthSubmission ? [latestMonthSubmission] : [];
+    }
+
     const day = now.getDay() === 0 ? 7 : now.getDay();
     totalUnits = 7;
     elapsedUnits = day;

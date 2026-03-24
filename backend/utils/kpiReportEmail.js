@@ -265,19 +265,23 @@ export function buildKpiPortfolioReportEmail({
   const generatedAtLabel = fmtDate(generatedAt || new Date());
   const monthYearLabel = monthLabel(month, year);
 
-  const totals = safeRows.reduce(
+  const statusCounts = safeRows.reduce(
     (acc, row) => {
-      acc.expected += Number(row?.expected || 0);
-      acc.actual += Number(row?.actual || 0);
+      const status = String(row?.status || "Behind");
+      if (status === "Completed") acc.completed += 1;
+      else if (status === "On Track") acc.onTrack += 1;
+      else if (status === "At Risk") acc.atRisk += 1;
+      else acc.behind += 1;
       return acc;
     },
-    { expected: 0, actual: 0 }
+    { onTrack: 0, atRisk: 0, behind: 0, completed: 0 }
   );
 
-  const progress = totals.expected > 0 ? (totals.actual / totals.expected) * 100 : 0;
-  const overallStatus = statusByProgress(progress);
-  const overallColor = statusColor(overallStatus);
-  const variance = totals.actual - totals.expected;
+  const portfolioHealth = safeRows.length
+    ? safeRows.reduce((sum, row) => sum + Number(row?.progress || 0), 0) / safeRows.length
+    : 0;
+  const needsAttention = statusCounts.atRisk + statusCounts.behind;
+  const vendorsActive = new Set(safeRows.map((row) => String(row?.assignedTo || "").trim()).filter(Boolean)).size;
 
   const text = [
     "KPI Portfolio Report",
@@ -287,10 +291,11 @@ export function buildKpiPortfolioReportEmail({
     `Requested By: ${requestedBy || "System"}`,
     `Assigned To: ${assignedTo || "-"}`,
     "",
-    `Overall Expected: ${totals.expected.toFixed(2)}`,
-    `Overall Actual: ${totals.actual.toFixed(2)}`,
-    `Overall Variance: ${variance.toFixed(2)}`,
-    `Overall Progress: ${progress.toFixed(2)}% (${overallStatus})`,
+    `Portfolio Health: ${portfolioHealth.toFixed(0)}`,
+    `KPIs On Track: ${statusCounts.onTrack}`,
+    `Need Attention: ${needsAttention}`,
+    `Vendors Active: ${vendorsActive}`,
+    `Total KPIs: ${safeRows.length}`,
     "",
     "KPI Details:",
     ...safeRows.map((row, index) => {
@@ -333,20 +338,24 @@ export function buildKpiPortfolioReportEmail({
       <table style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:18px;">
         <tbody>
           <tr>
-            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Overall Expected</td>
-            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(totals.expected.toFixed(2))}</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Portfolio Health</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(portfolioHealth.toFixed(0))}</td>
           </tr>
           <tr>
-            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Overall Actual</td>
-            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(totals.actual.toFixed(2))}</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">KPIs On Track</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(statusCounts.onTrack)}</td>
           </tr>
           <tr>
-            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Overall Variance (Actual - Expected)</td>
-            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(variance.toFixed(2))}</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Need Attention</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(needsAttention)}</td>
           </tr>
           <tr>
-            <td style="padding:12px;color:#475569;">Overall Progress</td>
-            <td style="padding:12px;text-align:right;font-weight:700;color:${overallColor};">${escapeHtml(progress.toFixed(2))}% (${escapeHtml(overallStatus)})</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Vendors Active</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(vendorsActive)}</td>
+          </tr>
+          <tr>
+            <td style="padding:12px;color:#475569;">Total KPIs</td>
+            <td style="padding:12px;text-align:right;font-weight:700;">${escapeHtml(safeRows.length)}</td>
           </tr>
         </tbody>
       </table>
@@ -379,11 +388,11 @@ export function buildKpiPortfolioReportEmail({
     html,
     fileName: `kpi-portfolio-report-${String(year)}-${String(month).padStart(2, "0")}.pdf`,
     summary: {
-      expected: totals.expected,
-      actual: totals.actual,
-      variance,
-      progress,
-      status: overallStatus,
+      portfolioHealth,
+      onTrack: statusCounts.onTrack,
+      needsAttention,
+      vendorsActive,
+      totalKpis: safeRows.length,
     },
   };
 }
@@ -417,10 +426,11 @@ export function buildKpiPortfolioPdfBuffer({
     doc.text(`Assigned To: ${assignedTo || "-"}`);
     doc.moveDown(0.8);
 
-    doc.fontSize(10).fillColor("#334155").text(`Overall Expected: ${Number(summary?.expected || 0).toFixed(2)}`);
-    doc.text(`Overall Actual: ${Number(summary?.actual || 0).toFixed(2)}`);
-    doc.text(`Overall Variance: ${Number(summary?.variance || 0).toFixed(2)}`);
-    doc.text(`Overall Progress: ${Number(summary?.progress || 0).toFixed(2)}% (${summary?.status || "Behind"})`);
+    doc.fontSize(10).fillColor("#334155").text(`Portfolio Health: ${Number(summary?.portfolioHealth || 0).toFixed(0)}`);
+    doc.text(`KPIs On Track: ${Number(summary?.onTrack || 0)}`);
+    doc.text(`Need Attention: ${Number(summary?.needsAttention || 0)}`);
+    doc.text(`Vendors Active: ${Number(summary?.vendorsActive || 0)}`);
+    doc.text(`Total KPIs: ${Number(summary?.totalKpis || 0)}`);
     doc.moveDown(1);
 
     doc.fontSize(12).fillColor("#0f172a").text("KPI Details Across Verticals");
