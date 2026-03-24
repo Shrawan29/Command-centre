@@ -292,14 +292,17 @@ export function buildKpiPortfolioReportEmail({
     "",
     "KPI Details:",
     ...safeRows.map((row, index) => {
-      return `${index + 1}. ${row.kpiName} | Vertical: ${row.verticalName} | Expected: ${Number(row.expected || 0).toFixed(2)} | Actual: ${Number(row.actual || 0).toFixed(2)} | Progress: ${Number(row.progress || 0).toFixed(2)}% | Status: ${row.status}`;
+      return `${index + 1}. ${row.kpiName} (${row.frequency || "monthly"}, ${row.unit || "number"}) | Vertical: ${row.verticalName} | Expected: ${Number(row.expected || 0).toFixed(2)} | Actual: ${Number(row.actual || 0).toFixed(2)} | Progress: ${Number(row.progress || 0).toFixed(2)}% | Status: ${row.status} | Submissions: ${Number(row.submissionCount || 0)}`;
     }),
   ].join("\n");
 
   const htmlRows = safeRows.length
     ? safeRows.map((row) => `
       <tr>
-        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.kpiName || "-")}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">
+          <div style="font-weight:700;color:#0f172a;">${escapeHtml(row.kpiName || "-")}</div>
+          <div style="margin-top:4px;font-size:11px;color:#64748b;">${escapeHtml(row.frequency || "monthly")} | ${escapeHtml(row.unit || "number")} | submissions: ${escapeHtml(Number(row.submissionCount || 0))}</div>
+        </td>
         <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(row.verticalName || "-")}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(Number(row.expected || 0).toFixed(2))}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">${escapeHtml(Number(row.actual || 0).toFixed(2))}</td>
@@ -320,9 +323,9 @@ export function buildKpiPortfolioReportEmail({
 
     <div style="padding:20px 24px;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-        <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#f1f5f9;font-size:12px;">Requested By: ${escapeHtml(requestedBy || "System")}</span>
-        <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#f1f5f9;font-size:12px;">Assigned To: ${escapeHtml(assignedTo || "-")}</span>
-        <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#ecfeff;font-size:12px;">Generated: ${escapeHtml(generatedAtLabel)}</span>
+        <span style="display:inline-block;padding:7px 10px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:12px;">Requested By: ${escapeHtml(requestedBy || "System")}</span>
+        <span style="display:inline-block;padding:7px 10px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:12px;">Assigned To: ${escapeHtml(assignedTo || "-")}</span>
+        <span style="display:inline-block;padding:7px 10px;border-radius:8px;background:#ecfeff;border:1px solid #bae6fd;font-size:12px;">Generated: ${escapeHtml(generatedAtLabel)}</span>
       </div>
 
       <table style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:18px;">
@@ -448,7 +451,8 @@ export function buildKpiPortfolioPdfBuffer({
           drawTableHeader();
         }
         const y = doc.y;
-        doc.fontSize(9).fillColor("#0f172a").text(String(row.kpiName || "-"), kpiX, y, { width: 160 });
+        const kpiLabel = `${String(row.kpiName || "-")} (${String(row.frequency || "monthly")}, ${String(row.unit || "number")})`;
+        doc.fontSize(9).fillColor("#0f172a").text(kpiLabel, kpiX, y, { width: 160 });
         doc.fillColor("#334155").text(String(row.verticalName || "-"), verticalX, y, { width: 130 });
         doc.text(String(Number(row.expected || 0).toFixed(2)), expectedX, y, { width: 65, align: "right" });
         doc.text(String(Number(row.actual || 0).toFixed(2)), actualX, y, { width: 65, align: "right" });

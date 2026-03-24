@@ -1,7 +1,7 @@
 import Submission from "../models/Submission.js";
 import KPI from "../models/KPI.js";
 import mongoose from "mongoose";
-import { collapseWeeklySubmissions, computeKpiMetrics } from "../utils/kpiPerformance.js";
+import { collapseWeeklySubmissions } from "../utils/kpiPerformance.js";
 import { buildKpiPortfolioPdfBuffer, buildKpiPortfolioReportEmail } from "../utils/kpiReportEmail.js";
 
 function normalizeWeek(value = "") {
@@ -223,6 +223,7 @@ export const sendKPIReport = async (req, res) => {
 
     const reportStart = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1));
     const reportEnd = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999));
+    const daysInMonth = new Date(Date.UTC(selectedYear, selectedMonth, 0)).getUTCDate();
 
     const weekStartDateFromKey = (weekValue = "") => {
       const match = String(weekValue).match(/^(\d{4})-W(\d{2})$/);
@@ -240,12 +241,67 @@ export const sendKPIReport = async (req, res) => {
       return weekStart;
     };
 
+    const isoWeekString = (date) => {
+      const utc = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+      const day = utc.getUTCDay() || 7;
+      utc.setUTCDate(utc.getUTCDate() + 4 - day);
+      const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
+      return `${utc.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+    };
+
+    const overlappingWeekCountInMonth = () => {
+      const weekKeys = new Set();
+      const cursor = new Date(reportStart);
+      while (cursor <= reportEnd) {
+        weekKeys.add(isoWeekString(cursor));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return weekKeys.size;
+    };
+
     const isWeekInMonth = (weekValue = "") => {
       const start = weekStartDateFromKey(weekValue);
       if (!start) return false;
       const end = new Date(start);
       end.setUTCDate(start.getUTCDate() + 6);
       return start <= reportEnd && end >= reportStart;
+    };
+
+    const isSubmissionInMonth = (submission) => {
+      const week = String(submission?.week || "").trim();
+      if (week) return isWeekInMonth(week);
+
+      const ts = new Date(submission?.updatedAt || submission?.createdAt || 0);
+      if (Number.isNaN(ts.getTime())) return false;
+      return ts >= reportStart && ts <= reportEnd;
+    };
+
+    const expectedForMonth = (kpi) => {
+      const target = Number(kpi?.target || 0);
+      const frequency = String(kpi?.frequency || "monthly").toLowerCase();
+
+      if (target <= 0) return 0;
+
+      if (frequency === "daily") {
+        return target * daysInMonth;
+      }
+
+      if (frequency === "weekly") {
+        const count = overlappingWeekCountInMonth();
+        return target * Math.max(1, count);
+      }
+
+      if (frequency === "quarterly") {
+        return target / 3;
+      }
+
+      if (frequency === "yearly") {
+        return target / 12;
+      }
+
+      // monthly/default
+      return target;
     };
 
     const isAllReport = String(kpiId).toLowerCase() === "all";
@@ -333,9 +389,9 @@ export const sendKPIReport = async (req, res) => {
     const rows = kpis
       .map((kpi) => {
         const kpiSubmissions = collapseWeeklySubmissions(submissionsByKpi.get(String(kpi._id)) || []);
-        const monthSubmissions = kpiSubmissions.filter((submission) => isWeekInMonth(submission?.week));
+        const monthSubmissions = kpiSubmissions.filter((submission) => isSubmissionInMonth(submission));
         const actual = monthSubmissions.reduce((sum, item) => sum + Number(item?.value || 0), 0);
-        const expected = Number(kpi?.target || 0);
+        const expected = expectedForMonth(kpi);
         const progress = expected > 0 ? (actual / expected) * 100 : 0;
         const status = progress >= 100 ? "Completed" : progress >= 80 ? "On Track" : progress >= 60 ? "At Risk" : "Behind";
 
