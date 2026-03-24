@@ -20,8 +20,21 @@ async function sendWithResend({ to, subject, text, apiKey, from }) {
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
+    const normalizedBody = String(errorBody || "").toLowerCase();
     const error = new Error(`Resend API failed with status ${response.status}: ${errorBody || response.statusText}`);
-    error.code = "EMAIL_DELIVERY_FAILED";
+
+    // 401/403 and most 4xx here usually indicate sender/domain or API key configuration issues.
+    if (
+      [400, 401, 403, 404, 422].includes(response.status) ||
+      normalizedBody.includes("verify") ||
+      normalizedBody.includes("domain") ||
+      normalizedBody.includes("from")
+    ) {
+      error.code = "EMAIL_CONFIG";
+    } else {
+      error.code = "EMAIL_DELIVERY_FAILED";
+    }
+
     throw error;
   }
 
