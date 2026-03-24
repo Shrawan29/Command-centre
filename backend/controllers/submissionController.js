@@ -246,6 +246,19 @@ Status: ${metrics.status}
     res.status(200).json({ message: "Email sent successfully" });
   } catch (error) {
     console.error("sendKPIReport error:", error);
+
+    if (error.code === "EMAIL_CONFIG") {
+      return res.status(503).json({
+        message: "Email service is not configured on the server.",
+      });
+    }
+
+    if (["EMAIL_DELIVERY_FAILED", "EAUTH", "ECONNECTION", "ETIMEDOUT", "ESOCKET"].includes(error.code)) {
+      return res.status(502).json({
+        message: "Unable to deliver email right now. Please try again shortly.",
+      });
+    }
+
     res.status(500).json({
       message: error.message || "Error sending email",
       error: error.message,
