@@ -2,19 +2,24 @@ import dns from "node:dns";
 
 dns.setDefaultResultOrder("ipv4first");
 
-async function sendWithResend({ to, subject, text, apiKey, from }) {
+async function sendWithResend({ to, subject, text, html, attachments, apiKey, from }) {
+  const payload = {
+    from,
+    to: [to],
+    subject,
+    text,
+  };
+
+  if (html) payload.html = html;
+  if (Array.isArray(attachments) && attachments.length) payload.attachments = attachments;
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -40,7 +45,7 @@ async function sendWithResend({ to, subject, text, apiKey, from }) {
   console.log("Email sent successfully (Resend API)");
 }
 
-const sendEmail = async (to, subject, text) => {
+const sendEmail = async (to, subject, text, options = {}) => {
   const resendApiKey = process.env.RESEND_APIKEY?.trim();
   const resendFrom = process.env.RESEND_FROM?.trim();
 
@@ -50,7 +55,15 @@ const sendEmail = async (to, subject, text) => {
     throw error;
   }
 
-  await sendWithResend({ to, subject, text, apiKey: resendApiKey, from: resendFrom });
+  await sendWithResend({
+    to,
+    subject,
+    text,
+    html: options?.html,
+    attachments: options?.attachments,
+    apiKey: resendApiKey,
+    from: resendFrom,
+  });
 };
 
 export default sendEmail;

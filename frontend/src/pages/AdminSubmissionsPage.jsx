@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getKPIs } from '../services/kpis.js';
-import { getAdminSubmissions } from '../services/submissions.js';
+import { getAdminSubmissions, sendKPIReport } from '../services/submissions.js';
 import { getUsers } from '../services/users.js';
 import { getVerticals } from '../services/verticals.js';
 
@@ -33,9 +33,12 @@ function dateTimeLabel(value) {
 }
 
 export default function AdminSubmissionsPage() {
+  const now = useMemo(() => new Date(), []);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const [rows, setRows] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -46,6 +49,24 @@ export default function AdminSubmissionsPage() {
   const [vendorId, setVendorId] = useState('');
   const [kpiId, setKpiId] = useState('');
   const [verticalId, setVerticalId] = useState('');
+  const [reportMonth, setReportMonth] = useState(() => String(new Date().getMonth() + 1));
+  const [reportYear, setReportYear] = useState(() => String(new Date().getFullYear()));
+
+  const reportMonthOptions = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => ({
+      value: String(i + 1),
+      label: new Date(Date.UTC(2000, i, 1)).toLocaleDateString('en-US', { month: 'long' }),
+    })),
+    []
+  );
+
+  const reportYearOptions = useMemo(
+    () => {
+      const currentYear = now.getFullYear();
+      return Array.from({ length: 5 }, (_, i) => String(currentYear - 2 + i));
+    },
+    [now]
+  );
 
   const filters = useMemo(
     () => ({
@@ -82,6 +103,30 @@ export default function AdminSubmissionsPage() {
     } finally {
       if (isRefresh) setRefreshing(false);
       else setLoading(false);
+    }
+  }
+
+  async function onSendReport() {
+    if (!vendorId) {
+      setError('Please select a vendor before sending a portfolio report.');
+      return;
+    }
+
+    setSendingReport(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await sendKPIReport('all', {
+        month: Number(reportMonth),
+        year: Number(reportYear),
+        vendorId,
+      });
+      setSuccess(response?.message || 'Report sent successfully.');
+    } catch (e) {
+      setError(e.message || 'Failed to send report');
+    } finally {
+      setSendingReport(false);
     }
   }
 
@@ -152,15 +197,49 @@ export default function AdminSubmissionsPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-slate-900">Filters</h2>
-          <button
-            type="button"
-            onClick={() => loadSubmissions(true)}
-            disabled={refreshing}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-2">
+            <select
+              value={reportMonth}
+              onChange={(e) => setReportMonth(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600"
+            >
+              {reportMonthOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            <select
+              value={reportYear}
+              onChange={(e) => setReportYear(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600"
+            >
+              {reportYearOptions.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={onSendReport}
+              disabled={sendingReport || !vendorId || !reportMonth || !reportYear}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {sendingReport ? 'Sending report...' : 'Send Portfolio PDF'}
+            </button>
+            <button
+              type="button"
+              onClick={() => loadSubmissions(true)}
+              disabled={refreshing}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
+
+        {success && (
+          <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {success}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <label className="space-y-1.5">

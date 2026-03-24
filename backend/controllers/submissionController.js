@@ -2,6 +2,7 @@ import Submission from "../models/Submission.js";
 import KPI from "../models/KPI.js";
 import mongoose from "mongoose";
 import { collapseWeeklySubmissions, computeKpiMetrics } from "../utils/kpiPerformance.js";
+import { buildKpiPortfolioPdfBuffer, buildKpiPortfolioReportEmail } from "../utils/kpiReportEmail.js";
 
 function normalizeWeek(value = "") {
   const match = String(value).trim().match(/^(\d{4})-W(\d{1,2})$/i);
@@ -203,47 +204,216 @@ import User from "../models/User.js";
 export const sendKPIReport = async (req, res) => {
   try {
     const { kpiId } = req.params;
+    const now = new Date();
+    const selectedMonth = Number(req.body?.month || (now.getMonth() + 1));
+    const selectedYear = Number(req.body?.year || now.getFullYear());
+    const selectedVendorId = req.body?.vendorId;
 
-    if (!mongoose.Types.ObjectId.isValid(kpiId)) {
+    if (!Number.isInteger(selectedMonth) || selectedMonth < 1 || selectedMonth > 12) {
+      return res.status(400).json({ message: "Invalid month. Use 1-12." });
+    }
+
+    if (!Number.isInteger(selectedYear) || selectedYear < 2000 || selectedYear > 2100) {
+      return res.status(400).json({ message: "Invalid year." });
+    }
+
+    if (req.user.role === "admin" && selectedVendorId && !mongoose.Types.ObjectId.isValid(selectedVendorId)) {
+      return res.status(400).json({ message: "Invalid vendor id." });
+    }
+
+    const reportStart = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1));
+    const reportEnd = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999));
+
+    const weekStartDateFromKey = (weekValue = "") => {
+      const match = String(weekValue).match(/^(\d{4})-W(\d{2})$/);
+      if (!match) return null;
+
+      const y = Number(match[1]);
+      const w = Number(match[2]);
+      const jan4 = new Date(Date.UTC(y, 0, 4));
+      const jan4Day = jan4.getUTCDay() || 7;
+      const week1Monday = new Date(jan4);
+      week1Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+
+      const weekStart = new Date(week1Monday);
+      weekStart.setUTCDate(week1Monday.getUTCDate() + ((w - 1) * 7));
+      return weekStart;
+    };
+
+    const isWeekInMonth = (weekValue = "") => {
+      const start = weekStartDateFromKey(weekValue);
+      if (!start) return false;
+      const end = new Date(start);
+      end.setUTCDate(start.getUTCDate() + 6);
+      return start <= reportEnd && end >= reportStart;
+    };
+
+    const isAllReport = String(kpiId).toLowerCase() === "all";
+    if (!isAllReport && !mongoose.Types.ObjectId.isValid(kpiId)) {
       return res.status(400).json({ message: "Invalid KPI id" });
     }
 
-    const kpi = await KPI.findById(kpiId);
-    if (!kpi) {
-      return res.status(404).json({ message: "KPI not found" });
+    const kpiQuery = {};
+    if (isAllReport) {
+      if (req.user.role === "agency") {
+        kpiQuery.assignedTo = req.user._id;
+      } else if (selectedVendorId) {
+        kpiQuery.assignedTo = selectedVendorId;
+      }
+    } else {
+      kpiQuery._id = kpiId;
     }
 
-    if (
-      req.user.role === "agency" &&
-      String(kpi.assignedTo) !== String(req.user._id)
-    ) {
-      return res.status(403).json({ message: "Access denied" });
+    const kpis = await KPI.find(kpiQuery)
+      .populate("vertical", "name")
+      .populate("assignedTo", "name email role");
+
+    if (!Array.isArray(kpis) || kpis.length === 0) {
+      return res.status(404).json({ message: "No KPIs found for report" });
     }
 
-    const user = await User.findById(kpi.assignedTo);
-    if (!user?.email) {
+    if (req.user.role === "agency") {
+      const blocked = kpis.some((item) => String(item?.assignedTo?._id || item?.assignedTo) !== String(req.user._id));
+      if (blocked) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
+    const assignedUserIds = Array.from(
+      new Set(
+        kpis
+          .map((item) => String(item?.assignedTo?._id || item?.assignedTo || ""))
+          .filter(Boolean)
+      )
+    );
+
+    const assignedUsers = await User.find({ _id: { $in: assignedUserIds } }).select("name email role");
+    if (!assignedUsers.length) {
       return res.status(400).json({ message: "Assigned vendor email is missing" });
     }
 
-    const submissions = await Submission.find({ kpi: kpiId });
-    const collapsedSubmissions = collapseWeeklySubmissions(submissions);
+    const adminUsers = await User.find({ role: "admin" }).select("name email role");
 
-    const metrics = computeKpiMetrics(kpi, collapsedSubmissions);
-    const performanceLabel = `Actual: ${metrics.actualProgress.toFixed(2)}%\nExpected: ${metrics.expectedProgress.toFixed(2)}%\nPace: ${metrics.meta?.pace?.toFixed?.(2) ?? Number(metrics.meta?.pace || 0).toFixed(2)}%`;
+    const recipients = [
+      ...assignedUsers
+        .filter((user) => user?.email)
+        .map((user) => ({
+          role: user.role,
+          name: user.name,
+          email: user.email,
+        })),
+      ...adminUsers
+        .filter((user) => user?.email)
+        .map((user) => ({
+          role: user.role,
+          name: user.name,
+          email: user.email,
+        })),
+    ].filter((recipient, index, list) => {
+      const email = String(recipient?.email || "").trim().toLowerCase();
+      if (!email) return false;
+      return list.findIndex((item) => String(item?.email || "").trim().toLowerCase() === email) === index;
+    });
 
-    const message = `
-KPI Report
+    if (recipients.length === 0) {
+      return res.status(400).json({ message: "No valid email recipients found for this report" });
+    }
 
-KPI: ${kpi.name}
-Target: ${kpi.target}
-Achieved: ${metrics.total}
-${performanceLabel}
-Status: ${metrics.status}
-`;
+    const submissions = await Submission.find({
+      kpi: { $in: kpis.map((item) => item._id) },
+    });
 
-    await sendEmail(user.email, "KPI Performance Report", message);
+    const submissionsByKpi = new Map();
+    submissions.forEach((submission) => {
+      const key = String(submission?.kpi || "");
+      if (!submissionsByKpi.has(key)) submissionsByKpi.set(key, []);
+      submissionsByKpi.get(key).push(submission);
+    });
 
-    res.status(200).json({ message: "Email sent successfully" });
+    const rows = kpis
+      .map((kpi) => {
+        const kpiSubmissions = collapseWeeklySubmissions(submissionsByKpi.get(String(kpi._id)) || []);
+        const monthSubmissions = kpiSubmissions.filter((submission) => isWeekInMonth(submission?.week));
+        const actual = monthSubmissions.reduce((sum, item) => sum + Number(item?.value || 0), 0);
+        const expected = Number(kpi?.target || 0);
+        const progress = expected > 0 ? (actual / expected) * 100 : 0;
+        const status = progress >= 100 ? "Completed" : progress >= 80 ? "On Track" : progress >= 60 ? "At Risk" : "Behind";
+
+        return {
+          kpiId: String(kpi._id),
+          kpiName: kpi.name,
+          verticalName: kpi?.vertical?.name || "Unassigned Vertical",
+          frequency: kpi.frequency,
+          unit: kpi.unit,
+          expected,
+          actual,
+          progress,
+          status,
+          submissionCount: monthSubmissions.length,
+          assignedTo: kpi?.assignedTo?.name || kpi?.assignedTo?.email || "-",
+        };
+      })
+      .sort((a, b) => {
+        if (a.verticalName === b.verticalName) return a.kpiName.localeCompare(b.kpiName);
+        return a.verticalName.localeCompare(b.verticalName);
+      });
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "No KPI rows available for report" });
+    }
+
+    const generatedAt = new Date();
+    const requestedBy = req.user?.name || req.user?.email || "System";
+    const assignedTo = assignedUsers.length === 1
+      ? (assignedUsers[0]?.name || assignedUsers[0]?.email || "-")
+      : `${assignedUsers.length} Agencies`;
+
+    const reportEmail = buildKpiPortfolioReportEmail({
+      rows,
+      generatedAt,
+      requestedBy,
+      assignedTo,
+      month: selectedMonth,
+      year: selectedYear,
+    });
+
+    const pdfBuffer = await buildKpiPortfolioPdfBuffer({
+      rows,
+      generatedAt,
+      requestedBy,
+      assignedTo,
+      month: selectedMonth,
+      year: selectedYear,
+      summary: reportEmail.summary,
+    });
+
+    const attachments = [
+      {
+        filename: reportEmail.fileName,
+        content: pdfBuffer.toString("base64"),
+      },
+    ];
+
+    await Promise.all(
+      recipients.map((recipient) =>
+        sendEmail(recipient.email, reportEmail.subject, reportEmail.text, {
+          html: reportEmail.html,
+          attachments,
+        })
+      )
+    );
+
+    res.status(200).json({
+      message: `Report sent successfully to ${recipients.length} recipient(s)`,
+      month: selectedMonth,
+      year: selectedYear,
+      rows: rows.length,
+      recipients: recipients.map((recipient) => ({
+        role: recipient.role,
+        name: recipient.name,
+        email: recipient.email,
+      })),
+    });
   } catch (error) {
     console.error("sendKPIReport error:", error);
 

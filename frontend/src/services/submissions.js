@@ -8,12 +8,18 @@ export function getKPIProgress(kpiId) {
   return apiRequest(`/api/submissions/${kpiId}`);
 }
 
-export function sendKPIReport(kpiId) {
+export function sendKPIReport(kpiId = 'all', filters = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-  return apiRequest(`/api/submissions/report/${kpiId}`, {
+  const body = {};
+  if (filters.month) body.month = Number(filters.month);
+  if (filters.year) body.year = Number(filters.year);
+  if (filters.vendorId) body.vendorId = filters.vendorId;
+
+  return apiRequest(`/api/submissions/report/${kpiId || 'all'}`, {
     method: 'POST',
+    body,
     signal: controller.signal,
   }).finally(() => clearTimeout(timeoutId));
 }
