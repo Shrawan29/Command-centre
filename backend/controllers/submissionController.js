@@ -250,22 +250,24 @@ export const sendKPIReport = async (req, res) => {
       return `${utc.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
     };
 
-    const overlappingWeekCountInMonth = () => {
+    const weekCountInMonth = () => {
       const weekKeys = new Set();
       const cursor = new Date(reportStart);
       while (cursor <= reportEnd) {
         weekKeys.add(isoWeekString(cursor));
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
-      return weekKeys.size;
+      return Array.from(weekKeys).filter((weekKey) => {
+        const weekStart = weekStartDateFromKey(weekKey);
+        if (!weekStart) return false;
+        return weekStart >= reportStart && weekStart <= reportEnd;
+      }).length;
     };
 
     const isWeekInMonth = (weekValue = "") => {
       const start = weekStartDateFromKey(weekValue);
       if (!start) return false;
-      const end = new Date(start);
-      end.setUTCDate(start.getUTCDate() + 6);
-      return start <= reportEnd && end >= reportStart;
+      return start >= reportStart && start <= reportEnd;
     };
 
     const isSubmissionInMonth = (submission) => {
@@ -288,7 +290,7 @@ export const sendKPIReport = async (req, res) => {
       }
 
       if (frequency === "weekly") {
-        const count = overlappingWeekCountInMonth();
+        const count = weekCountInMonth();
         return target * Math.max(1, count);
       }
 

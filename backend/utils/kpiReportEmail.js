@@ -277,6 +277,7 @@ export function buildKpiPortfolioReportEmail({
   const progress = totals.expected > 0 ? (totals.actual / totals.expected) * 100 : 0;
   const overallStatus = statusByProgress(progress);
   const overallColor = statusColor(overallStatus);
+  const variance = totals.actual - totals.expected;
 
   const text = [
     "KPI Portfolio Report",
@@ -288,6 +289,7 @@ export function buildKpiPortfolioReportEmail({
     "",
     `Overall Expected: ${totals.expected.toFixed(2)}`,
     `Overall Actual: ${totals.actual.toFixed(2)}`,
+    `Overall Variance: ${variance.toFixed(2)}`,
     `Overall Progress: ${progress.toFixed(2)}% (${overallStatus})`,
     "",
     "KPI Details:",
@@ -339,6 +341,10 @@ export function buildKpiPortfolioReportEmail({
             <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(totals.actual.toFixed(2))}</td>
           </tr>
           <tr>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;">Overall Variance (Actual - Expected)</td>
+            <td style="padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;">${escapeHtml(variance.toFixed(2))}</td>
+          </tr>
+          <tr>
             <td style="padding:12px;color:#475569;">Overall Progress</td>
             <td style="padding:12px;text-align:right;font-weight:700;color:${overallColor};">${escapeHtml(progress.toFixed(2))}% (${escapeHtml(overallStatus)})</td>
           </tr>
@@ -375,6 +381,7 @@ export function buildKpiPortfolioReportEmail({
     summary: {
       expected: totals.expected,
       actual: totals.actual,
+      variance,
       progress,
       status: overallStatus,
     },
@@ -412,6 +419,7 @@ export function buildKpiPortfolioPdfBuffer({
 
     doc.fontSize(10).fillColor("#334155").text(`Overall Expected: ${Number(summary?.expected || 0).toFixed(2)}`);
     doc.text(`Overall Actual: ${Number(summary?.actual || 0).toFixed(2)}`);
+    doc.text(`Overall Variance: ${Number(summary?.variance || 0).toFixed(2)}`);
     doc.text(`Overall Progress: ${Number(summary?.progress || 0).toFixed(2)}% (${summary?.status || "Behind"})`);
     doc.moveDown(1);
 
