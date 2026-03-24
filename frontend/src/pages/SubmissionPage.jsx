@@ -207,7 +207,6 @@ function ProgressBar({ pct, barClass }) {
 // ─── main page ────────────────────────────────────────────────────────────────
 export default function SubmissionPage() {
   const session = getSession();
-  const today = useMemo(() => new Date(), []);
   const [kpis, setKpis]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
@@ -220,25 +219,9 @@ export default function SubmissionPage() {
   const [week, setWeek]           = useState(() => getCurrentIsoWeek());
   const [value, setValue]         = useState('');
   const [busy, setBusy]           = useState(false);
-  const [reportMonth, setReportMonth] = useState(() => String((new Date().getMonth() + 1)));
-  const [reportYear, setReportYear] = useState(() => String(new Date().getFullYear()));
   const currentDateLabel = useMemo(
     () => new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
     []
-  );
-  const reportMonthOptions = useMemo(
-    () => Array.from({ length: 12 }, (_, i) => ({
-      value: String(i + 1),
-      label: new Date(Date.UTC(2000, i, 1)).toLocaleDateString('en-US', { month: 'long' }),
-    })),
-    []
-  );
-  const reportYearOptions = useMemo(
-    () => {
-      const currentYear = today.getFullYear();
-      return Array.from({ length: 5 }, (_, i) => String(currentYear - 2 + i));
-    },
-    [today]
   );
 
   useEffect(() => {
@@ -308,14 +291,11 @@ export default function SubmissionPage() {
   }
 
   async function onSendReport() {
-    if (!reportMonth || !reportYear) return;
+    if (!kpiId) return;
     setReportBusy(true); setError(''); setSuccess('');
     try {
-      const res = await sendKPIReport('all', {
-        month: Number(reportMonth),
-        year: Number(reportYear),
-      });
-      setSuccess(res?.message || 'Report sent to agency and admin recipients successfully.');
+      const res = await sendKPIReport(kpiId);
+      setSuccess(res?.message || 'Report sent successfully.');
     } catch (e) { setError(e.message || 'Failed to send report'); }
     finally { setReportBusy(false); }
   }
@@ -437,41 +417,15 @@ export default function SubmissionPage() {
                 </div>
 
                 <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Report Month</span>
-                      <select
-                        value={reportMonth}
-                        onChange={(e) => setReportMonth(e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700"
-                      >
-                        {reportMonthOptions.map((item) => (
-                          <option key={item.value} value={item.value}>{item.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Report Year</span>
-                      <select
-                        value={reportYear}
-                        onChange={(e) => setReportYear(e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700"
-                      >
-                        {reportYearOptions.map((item) => (
-                          <option key={item} value={item}>{item}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
                   <button type="button" onClick={onSendReport}
-                    disabled={reportBusy || loading || !reportMonth || !reportYear}
+                    disabled={reportBusy || loading || !kpiId}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-40">
                     {reportBusy ? <Spinner className="h-3.5 w-3.5"/> : (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                         <path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.755.755 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3h-11ZM15 6.954 8.978 9.86a2.25 2.25 0 0 1-1.956 0L1 6.954V11.5A1.5 1.5 0 0 0 2.5 13h11a1.5 1.5 0 0 0 1.5-1.5V6.954Z"/>
                       </svg>
                     )}
-                    Send Monthly Portfolio PDF
+                    Send KPI Report
                   </button>
                   <button type="submit" disabled={busy || loading || !kpiId || !week || !value}
                     className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-50">
