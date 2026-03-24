@@ -249,7 +249,7 @@ Status: ${metrics.status}
 
     if (error.code === "EMAIL_CONFIG") {
       return res.status(503).json({
-        message: "Email service is misconfigured. Verify RESEND_APIKEY and RESEND_FROM (verified sender/domain), or configure EMAIL_USER and EMAIL_PASS for SMTP fallback.",
+        message: "Email service is misconfigured. Verify RESEND_APIKEY and RESEND_FROM (verified sender/domain).",
       });
     }
 
