@@ -175,7 +175,10 @@ export function computeKpiMetrics(kpi, submissions, now = new Date()) {
         if (!normalized) return false;
         const weekStart = weekStartDateFromKey(normalized);
         if (!weekStart) return false;
-        return weekStart >= monthStart && weekStart <= monthEnd && weekStart <= currentWeekStart;
+        const weekEnd = new Date(weekStart);
+        weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+        const overlapsCurrentMonth = weekStart <= monthEnd && weekEnd >= monthStart;
+        return overlapsCurrentMonth && weekStart <= currentWeekStart;
       });
 
       const latestMonthSubmission = monthSubmissions.sort((a, b) => {
