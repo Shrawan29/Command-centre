@@ -12,6 +12,10 @@ export function getVerticalDashboard(verticalId) {
   return apiRequest(`/api/dashboard/vertical/${verticalId}`);
 }
 
+export function getDashboardOverview() {
+  return apiRequest('/api/dashboard/overview');
+}
+
 export function createVertical(payload) {
   return apiRequest('/api/verticals', { method: 'POST', body: payload });
 }

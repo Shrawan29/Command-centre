@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getKPIs, getMyKPIs } from '../services/kpis.js';
 import { getSession } from '../services/session.js';
-import { getKPIProgress } from '../services/submissions.js';
-import { getVerticalDashboard, getVerticals } from '../services/verticals.js';
+import { getDashboardOverview, getVerticals } from '../services/verticals.js';
 
 // ─── tiny design tokens ────────────────────────────────────────────────────
 const STATUS = {
@@ -104,62 +103,28 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const v = await getVerticals();
+      const [v, kpiList, overview] = await Promise.all([
+        getVerticals(),
+        session?.role === 'admin' ? getKPIs() : getMyKPIs(),
+        getDashboardOverview(),
+      ]);
       if (!aliveRef.current) return;
+
       const verticalList = Array.isArray(v) ? v : [];
       setVerticals(verticalList);
 
-      const kpiList = session?.role === 'admin' ? await getKPIs() : await getMyKPIs();
-      if (!aliveRef.current) return;
       const safeKpis = Array.isArray(kpiList) ? kpiList : [];
       setKpis(safeKpis);
 
-      const dashboardEntries = await Promise.all(
-        verticalList.map(async (vertical) => {
-          try {
-            const d = await getVerticalDashboard(vertical._id);
-            return [vertical._id, d];
-          } catch {
-            return [vertical._id, null];
-          }
-        })
-      );
-      if (!aliveRef.current) return;
-      setDashboards(Object.fromEntries(dashboardEntries));
+      const safeDashboards = overview && typeof overview === 'object' && overview.dashboardsByVertical
+        ? overview.dashboardsByVertical
+        : {};
+      const safeAttentionRows = Array.isArray(overview?.attentionRows)
+        ? overview.attentionRows
+        : [];
 
-      const progressRows = await Promise.all(
-        safeKpis.map(async (kpi) => {
-          const verticalId   = typeof kpi.vertical === 'string' ? kpi.vertical : kpi.vertical?._id;
-          const verticalName = verticalList.find((x) => x._id === verticalId)?.name
-            || (typeof kpi.vertical === 'object' ? kpi.vertical?.name : '')
-            || 'Unknown Vertical';
-          try {
-            const progress = await getKPIProgress(kpi._id);
-            const perf = Number(progress?.performance || 0);
-            return {
-              id: kpi._id, name: kpi.name, verticalName,
-              category: kpi.category || 'deliverables',
-              unit: kpi.unit || 'number',
-              frequency: kpi.frequency || 'monthly',
-              status: progress?.status || 'Behind',
-              performance: Number.isFinite(perf) ? perf : 0,
-              target: Number(progress?.target || kpi.target || 0),
-              total:  Number(progress?.total || 0),
-            };
-          } catch {
-            return {
-              id: kpi._id, name: kpi.name, verticalName,
-              category: kpi.category || 'deliverables',
-              unit: kpi.unit || 'number',
-              frequency: kpi.frequency || 'monthly',
-              status: 'Behind', performance: 0,
-              target: Number(kpi.target || 0), total: 0,
-            };
-          }
-        })
-      );
-      if (!aliveRef.current) return;
-      setAttentionRows(progressRows);
+      setDashboards(safeDashboards);
+      setAttentionRows(safeAttentionRows);
       setLastUpdated(new Date());
     } catch (e) {
       if (!aliveRef.current) return;
