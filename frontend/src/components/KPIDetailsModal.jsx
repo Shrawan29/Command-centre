@@ -22,15 +22,15 @@ export default function KPIDetailsModal({ kpi, onClose }) {
         </button>
         <h2 className="text-xl font-bold mb-4">KPI Details</h2>
         <div className="space-y-2 mb-4">
-          <div><span className="font-semibold">Name:</span> {kpi.name}</div>
-          <div><span className="font-semibold">Category:</span> {kpi.category}</div>
-          <div><span className="font-semibold">Unit:</span> {kpi.unit}</div>
-          <div><span className="font-semibold">Frequency:</span> {kpi.frequency}</div>
-          <div><span className="font-semibold">Target:</span> {kpi.target}</div>
-          <div><span className="font-semibold">Status:</span> {kpi.status}</div>
-          <div><span className="font-semibold">Due Date:</span> {kpi.dueDate || kpi.deadline || 'Ongoing'}</div>
-          <div><span className="font-semibold">Assigned To:</span> {typeof kpi.assignedTo === 'object' && kpi.assignedTo !== null ? (kpi.assignedTo.name || kpi.assignedTo.email || kpi.assignedTo._id) : (kpi.assignedToName || kpi.assignedTo || '—')}</div>
-          <div><span className="font-semibold">Description:</span> {kpi.description || '—'}</div>
+          <div><span className="font-semibold">Name:</span> {typeof kpi.name === 'object' ? JSON.stringify(kpi.name) : (kpi.name || '—')}</div>
+          <div><span className="font-semibold">Category:</span> {typeof kpi.category === 'object' ? JSON.stringify(kpi.category) : (kpi.category || '—')}</div>
+          <div><span className="font-semibold">Unit:</span> {typeof kpi.unit === 'object' ? JSON.stringify(kpi.unit) : (kpi.unit || '—')}</div>
+          <div><span className="font-semibold">Frequency:</span> {typeof kpi.frequency === 'object' ? JSON.stringify(kpi.frequency) : (kpi.frequency || '—')}</div>
+          <div><span className="font-semibold">Target:</span> {typeof kpi.target === 'object' ? JSON.stringify(kpi.target) : (kpi.target || '—')}</div>
+          <div><span className="font-semibold">Status:</span> {typeof kpi.status === 'object' ? JSON.stringify(kpi.status) : (kpi.status || '—')}</div>
+          <div><span className="font-semibold">Due Date:</span> {typeof kpi.dueDate === 'object' ? JSON.stringify(kpi.dueDate) : (kpi.dueDate || kpi.deadline || 'Ongoing')}</div>
+          <div><span className="font-semibold">Assigned To:</span> {typeof kpi.assignedTo === 'object' && kpi.assignedTo !== null ? (kpi.assignedTo.name || kpi.assignedTo.username || kpi.assignedTo.email || kpi.assignedTo._id || JSON.stringify(kpi.assignedTo)) : (kpi.assignedToName || kpi.assignedTo || '—')}</div>
+          <div><span className="font-semibold">Description:</span> {typeof kpi.description === 'object' ? JSON.stringify(kpi.description) : (kpi.description || '—')}</div>
         </div>
         <div>
           <h3 className="text-lg font-semibold mb-2">KPI Metrics</h3>
@@ -38,7 +38,7 @@ export default function KPIDetailsModal({ kpi, onClose }) {
             <ul className="space-y-1">
               {Object.entries(tokenMetrics).map(([key, value]) => (
                 <li key={key}>
-                  <span className="font-medium text-slate-700">{key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span> {value}
+                  <span className="font-medium text-slate-700">{key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span> {typeof value === 'object' ? JSON.stringify(value) : value}
                 </li>
               ))}
             </ul>
