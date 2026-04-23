@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createKPI, deleteKPI, getKPIs, updateKPI } from '../services/kpis.js';
 import { getUsers } from '../services/users.js';
 import { getVerticals } from '../services/verticals.js';
+import KPIDetailsModal from '../components/KPIDetailsModal.jsx';
 
 // ─── constants ───────────────────────────────────────────────────────────────
 const KPI_CATEGORY_OPTIONS  = ['deliverables', 'revenue', 'timeline', 'brand', 'operations', 'growth'];
@@ -368,6 +369,7 @@ function ProgressCell({ kpi }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
 export default function KPIManagementPage() {
   const [kpis, setKpis]               = useState([]);
   const [verticals, setVerticals]     = useState([]);
@@ -397,6 +399,7 @@ export default function KPIManagementPage() {
   const [editAssignedTo, setEditAssignedTo] = useState('');
 
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [detailsKPI, setDetailsKPI] = useState(null);
 
   async function load() {
     setLoading(true); setError('');
@@ -643,8 +646,15 @@ export default function KPIManagementPage() {
                         ? new Date(r.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                         : 'Ongoing';
 
+                    // Compose assignedToName for modal
+                    const assignedToUser = users.find(u => u._id === r.assignedTo);
+                    const assignedToName = assignedToUser ? (assignedToUser.name || assignedToUser.email) : r.assignedTo;
+
                     return (
-                      <tr key={r._id} className={`group transition-colors ${isEditing ? 'bg-sky-50/50' : 'hover:bg-slate-50/80'}`}>
+                      <tr key={r._id} className={`group transition-colors ${isEditing ? 'bg-sky-50/50' : 'hover:bg-slate-50/80'}`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setDetailsKPI({ ...r, assignedToName })}
+                      >
                         {/* KPI name */}
                         <td className="px-4 py-3 min-w-[160px]">
                           <div className="flex items-center gap-2">
@@ -676,7 +686,7 @@ export default function KPIManagementPage() {
                           </span>
                         </td>
                         {/* Actions */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                             <button type="button" onClick={() => onStartEdit(r)} disabled={busy}
                               className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow disabled:opacity-40">
@@ -708,6 +718,9 @@ export default function KPIManagementPage() {
 
       {deleteTarget && (
         <DeleteModal target={deleteTarget} onConfirm={onConfirmDelete} onCancel={() => setDeleteTarget(null)} busy={busy}/>
+      )}
+      {detailsKPI && (
+        <KPIDetailsModal kpi={detailsKPI} onClose={() => setDetailsKPI(null)} />
       )}
     </div>
   );
