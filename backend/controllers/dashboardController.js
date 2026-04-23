@@ -1,6 +1,12 @@
 import KPI from "../models/KPI.js";
 import Submission from "../models/Submission.js";
 import { computeKpiMetrics } from "../utils/kpiPerformance.js";
+import { getCurrentMonthInstagramTokenMetrics } from "../utils/instagramTokenMetrics.js";
+import {
+  buildForcedMetricOptions,
+  getForcedTokenTotal,
+  hasTokenMappedKpi,
+} from "../utils/tokenKpiMapping.js";
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -29,6 +35,9 @@ export const getVerticalDashboard = async (req, res) => {
       kpiFilter.assignedTo = req.user._id;
     }
     const kpis = await KPI.find(kpiFilter);
+    const tokenPayload = hasTokenMappedKpi(kpis)
+      ? await getCurrentMonthInstagramTokenMetrics()
+      : null;
 
     const kpiIds = kpis.map((kpi) => kpi._id);
     const submissions = kpiIds.length
@@ -45,7 +54,13 @@ export const getVerticalDashboard = async (req, res) => {
     let totalPerformance = 0;
 
     for (let kpi of kpis) {
-      const metrics = computeKpiMetrics(kpi, submissionsByKpi.get(String(kpi._id)) || []);
+      const forced = getForcedTokenTotal(kpi, tokenPayload);
+      const metrics = computeKpiMetrics(
+        kpi,
+        submissionsByKpi.get(String(kpi._id)) || [],
+        new Date(),
+        buildForcedMetricOptions(forced)
+      );
       const performance = metrics.performance;
 
       totalPerformance += performance;
@@ -90,6 +105,9 @@ export const getDashboardOverview = async (req, res) => {
     }
 
     const kpis = await KPI.find(kpiFilter).populate("vertical", "name");
+    const tokenPayload = hasTokenMappedKpi(kpis)
+      ? await getCurrentMonthInstagramTokenMetrics()
+      : null;
     const kpiIds = kpis.map((kpi) => kpi._id);
 
     const submissions = kpiIds.length
@@ -102,7 +120,13 @@ export const getDashboardOverview = async (req, res) => {
 
     for (const kpi of kpis) {
       const kpiSubmissions = submissionsByKpi.get(String(kpi._id)) || [];
-      const metrics = computeKpiMetrics(kpi, kpiSubmissions);
+      const forced = getForcedTokenTotal(kpi, tokenPayload);
+      const metrics = computeKpiMetrics(
+        kpi,
+        kpiSubmissions,
+        new Date(),
+        buildForcedMetricOptions(forced)
+      );
 
       const verticalId = String(kpi?.vertical?._id || kpi?.vertical || "");
       if (!verticalId) continue;

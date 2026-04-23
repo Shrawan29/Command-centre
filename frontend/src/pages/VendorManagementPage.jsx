@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createUser, deleteUser, getUsers, updateUser } from '../services/users.js';
 import { getKPIs } from '../services/kpis.js';
-import { getKPIProgress } from '../services/submissions.js';
 import { getVerticals } from '../services/verticals.js';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -432,21 +431,22 @@ export default function VendorManagementPage() {
       const allKpis = await getKPIs().catch(() => []);
       const safeKpis = Array.isArray(allKpis) ? allKpis : [];
 
-      const progressRows = await Promise.all(
-        safeKpis.map(async (kpi) => {
-          const assignedTo = typeof kpi.assignedTo === 'string' ? kpi.assignedTo : kpi.assignedTo?._id;
-          if (!assignedTo) return null;
-          const verticalName = typeof kpi.vertical === 'string'
-            ? verticalNameById[kpi.vertical] || 'Unassigned'
-            : kpi.vertical?.name || 'Unassigned';
-          try {
-            const progress = await getKPIProgress(kpi._id);
-            return { ...kpi, assignedTo, verticalName, performance: Number(progress?.performance || 0), status: progress?.status || kpi.status || 'Behind', total: Number(progress?.total || 0) };
-          } catch {
-            return { ...kpi, assignedTo, verticalName, performance: 0, status: 'Behind', total: 0 };
-          }
-        })
-      );
+      const progressRows = safeKpis.map((kpi) => {
+        const assignedTo = typeof kpi.assignedTo === 'string' ? kpi.assignedTo : kpi.assignedTo?._id;
+        if (!assignedTo) return null;
+        const verticalName = typeof kpi.vertical === 'string'
+          ? verticalNameById[kpi.vertical] || 'Unassigned'
+          : kpi.vertical?.name || 'Unassigned';
+
+        return {
+          ...kpi,
+          assignedTo,
+          verticalName,
+          performance: Number(kpi.performance || 0),
+          status: kpi.status || 'Behind',
+          total: Number(kpi.total || 0),
+        };
+      });
 
       const grouped = {};
       const kpiGrouped = {};

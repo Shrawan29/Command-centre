@@ -8,7 +8,11 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "reset-admin-password": "node scripts/resetAdminPassword.js",
-    "migrate:submission-index": "node scripts/migrateSubmissionWeekIndex.js"
+    "migrate:submission-index": "node scripts/migrateSubmissionWeekIndex.js",
+    "seed:token-kpis": "node scripts/seedAccessTokenKpis.js",
+    "seed:cp-token-kpis": "node scripts/seedAccessTokenKpis.js --cp-only --reset",
+    "seed:cp-page-kpis": "node scripts/seedCentrePointPageKpis.js",
+    "import:founder-kpis": "node scripts/importFounderKpis.js"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,26 @@
 import KPI from "../models/KPI.js";
 import Submission from "../models/Submission.js";
 import { computeKpiMetrics } from "../utils/kpiPerformance.js";
+import { getCurrentMonthInstagramTokenMetrics } from "../utils/instagramTokenMetrics.js";
+import {
+  buildForcedMetricOptions,
+  buildTokenMeta,
+  getForcedTokenTotal,
+  hasTokenMappedKpi,
+} from "../utils/tokenKpiMapping.js";
+
+function groupSubmissionsByKpi(submissions = []) {
+  const map = new Map();
+
+  for (const submission of submissions) {
+    const key = String(submission?.kpi || "");
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(submission);
+  }
+
+  return map;
+}
 
 // @desc   Create KPI
 export const createKPI = async (req, res) => {
@@ -41,17 +61,37 @@ export const getKPIs = async (req, res) => {
       )
       .populate("createdBy", "name email companyName agencyType primaryContact");
 
+    const tokenPayload = hasTokenMappedKpi(kpis)
+      ? await getCurrentMonthInstagramTokenMetrics()
+      : null;
+
+    const kpiIds = kpis.map((kpi) => kpi._id);
+    const submissions = kpiIds.length
+      ? await Submission.find({ kpi: { $in: kpiIds } })
+      : [];
+    const submissionsByKpi = groupSubmissionsByKpi(submissions);
+
     const kpisWithMetrics = await Promise.all(
       kpis.map(async (kpi) => {
-        const submissions = await Submission.find({ kpi: kpi._id });
-        const metrics = computeKpiMetrics(kpi, submissions);
+        const forced = getForcedTokenTotal(kpi, tokenPayload);
+
+        const metrics = computeKpiMetrics(
+          kpi,
+          submissionsByKpi.get(String(kpi._id)) || [],
+          new Date(),
+          buildForcedMetricOptions(forced)
+        );
+
         return {
           ...kpi.toObject(),
           total: metrics.total,
           performance: Number(metrics.performance.toFixed(2)),
           completion: Number(metrics.completion.toFixed(2)),
           status: metrics.status,
-          meta: metrics.meta,
+          meta: {
+            ...metrics.meta,
+            tokenMetrics: buildTokenMeta(forced, tokenPayload),
+          },
         };
       })
     );
@@ -71,17 +111,37 @@ export const getMyKPIs = async (req, res) => {
     const userId = req.user._id;
 
     const kpis = await KPI.find({ assignedTo: userId });
+    const tokenPayload = hasTokenMappedKpi(kpis)
+      ? await getCurrentMonthInstagramTokenMetrics()
+      : null;
+
+    const kpiIds = kpis.map((kpi) => kpi._id);
+    const submissions = kpiIds.length
+      ? await Submission.find({ kpi: { $in: kpiIds } })
+      : [];
+    const submissionsByKpi = groupSubmissionsByKpi(submissions);
+
     const kpisWithMetrics = await Promise.all(
       kpis.map(async (kpi) => {
-        const submissions = await Submission.find({ kpi: kpi._id });
-        const metrics = computeKpiMetrics(kpi, submissions);
+        const forced = getForcedTokenTotal(kpi, tokenPayload);
+
+        const metrics = computeKpiMetrics(
+          kpi,
+          submissionsByKpi.get(String(kpi._id)) || [],
+          new Date(),
+          buildForcedMetricOptions(forced)
+        );
+
         return {
           ...kpi.toObject(),
           total: metrics.total,
           performance: Number(metrics.performance.toFixed(2)),
           completion: Number(metrics.completion.toFixed(2)),
           status: metrics.status,
-          meta: metrics.meta,
+          meta: {
+            ...metrics.meta,
+            tokenMetrics: buildTokenMeta(forced, tokenPayload),
+          },
         };
       })
     );

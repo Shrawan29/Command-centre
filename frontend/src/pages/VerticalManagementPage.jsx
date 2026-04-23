@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Button from '../components/Button.jsx';
 import Field from '../components/Field.jsx';
 import { getKPIs } from '../services/kpis.js';
-import { getKPIProgress } from '../services/submissions.js';
 import {
   createVertical,
   deleteVertical,
@@ -16,7 +15,6 @@ export default function VerticalManagementPage() {
   const [selectedVerticalId, setSelectedVerticalId] = useState('');
   const [dashboard, setDashboard] = useState(null);
   const [kpis, setKpis] = useState([]);
-  const [progressByKpi, setProgressByKpi] = useState({});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -70,7 +68,6 @@ export default function VerticalManagementPage() {
     async function loadSelectedData() {
       if (!selectedVerticalId) {
         setDashboard(null);
-        setProgressByKpi({});
         setEditName('');
         setEditDescription('');
         return;
@@ -84,29 +81,9 @@ export default function VerticalManagementPage() {
         const dash = await getVerticalDashboard(selectedVerticalId).catch(() => null);
         if (!alive) return;
         setDashboard(dash);
-
-        const selectedKpis = kpis.filter((k) => {
-          const vId = typeof k.vertical === 'string' ? k.vertical : k.vertical?._id;
-          return vId === selectedVerticalId;
-        });
-
-        const entries = await Promise.all(
-          selectedKpis.map(async (k) => {
-            try {
-              const progress = await getKPIProgress(k._id);
-              return [k._id, progress];
-            } catch {
-              return [k._id, null];
-            }
-          })
-        );
-
-        if (!alive) return;
-        setProgressByKpi(Object.fromEntries(entries));
       } catch {
         if (!alive) return;
         setDashboard(null);
-        setProgressByKpi({});
       }
     }
 
@@ -149,22 +126,21 @@ export default function VerticalManagementPage() {
         });
       }
 
-      const progress = progressByKpi[kpi._id];
       groups.get(vendorId).items.push({
         id: kpi._id,
         name: kpi.name,
         category: kpi.category || 'deliverables',
         unit: kpi.unit || 'number',
         frequency: kpi.frequency || 'monthly',
-        status: progress?.status || 'Behind',
-        performance: Number(progress?.performance || 0),
-        total: Number(progress?.total || 0),
-        target: Number(progress?.target || kpi.target || 0),
+        status: kpi.status || 'Behind',
+        performance: Number(kpi.performance || 0),
+        total: Number(kpi.total || 0),
+        target: Number(kpi.target || 0),
       });
     }
 
     return Array.from(groups.values());
-  }, [kpis, progressByKpi, selectedVerticalId]);
+  }, [kpis, selectedVerticalId]);
 
   function statusBadgeTone(status) {
     if (status === 'On Track') return 'border-emerald-300 bg-emerald-50 text-emerald-700';

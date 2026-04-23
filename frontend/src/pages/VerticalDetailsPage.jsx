@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getMyKPIs, getKPIs } from '../services/kpis.js';
-import { getKPIProgress } from '../services/submissions.js';
 import {
   createVertical,
   deleteVertical,
@@ -212,7 +211,6 @@ export default function VerticalDetailsPage() {
   const [verticals, setVerticals]         = useState([]);
   const [dashboard, setDashboard]         = useState(null);
   const [kpis, setKpis]                   = useState([]);
-  const [progressByKpi, setProgressByKpi] = useState({});
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState('');
   const [notice, setNotice]               = useState('');
@@ -245,15 +243,6 @@ export default function VerticalDetailsPage() {
       });
       if (!aliveRef.current) return;
       setKpis(filtered);
-
-      const entries = await Promise.all(
-        filtered.map(async (k) => {
-          try { const p = await getKPIProgress(k._id); return [k._id, p]; }
-          catch { return [k._id, null]; }
-        })
-      );
-      if (!aliveRef.current) return;
-      setProgressByKpi(Object.fromEntries(entries));
     } catch (e) {
       if (!aliveRef.current) return;
       setError(e.message || 'Failed to load vertical details');
@@ -292,21 +281,20 @@ export default function VerticalDetailsPage() {
           items: [],
         });
       }
-      const progress    = progressByKpi[kpi._id];
-      const performance = Number(progress?.performance || 0);
+      const performance = Number(kpi.performance || 0);
       groups.get(vendorId).items.push({
         id: kpi._id, name: kpi.name,
         category: kpi.category || 'deliverables',
         unit: kpi.unit || 'number',
         frequency: kpi.frequency || 'monthly',
-        status: progress?.status || 'Behind',
+        status: kpi.status || 'Behind',
         performance,
-        total: Number(progress?.total || 0),
-        target: Number(progress?.target || kpi.target || 0),
+        total: Number(kpi.total || 0),
+        target: Number(kpi.target || 0),
       });
     }
     return Array.from(groups.values());
-  }, [kpis, progressByKpi]);
+  }, [kpis]);
 
   async function onCreateVertical(e) {
     e.preventDefault(); setBusy(true); setError(''); setNotice('');

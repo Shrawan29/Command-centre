@@ -124,9 +124,11 @@ export function collapseWeeklySubmissions(submissions = []) {
   return [...passthrough, ...Array.from(latestByWeek.values())];
 }
 
-export function computeKpiMetrics(kpi, submissions, now = new Date()) {
+export function computeKpiMetrics(kpi, submissions, now = new Date(), options = {}) {
   const target = Number(kpi?.target || 0);
   const frequency = String(kpi?.frequency || "monthly").toLowerCase();
+  const forcedTotal = Number(options?.forcedTotal);
+  const hasForcedTotal = Number.isFinite(forcedTotal);
   const safeSubmissions = collapseWeeklySubmissions(
     Array.isArray(submissions) ? submissions : []
   );
@@ -139,7 +141,12 @@ export function computeKpiMetrics(kpi, submissions, now = new Date()) {
       actualProgress: 0,
       expectedProgress: 0,
       status: "Behind",
-      meta: { mode: frequency, target },
+      meta: {
+        mode: frequency,
+        target,
+        dataSource: hasForcedTotal ? String(options?.source || "external") : "submissions",
+        tokenMetricKey: hasForcedTotal ? String(options?.metricKey || "") : "",
+      },
     };
   }
 
@@ -203,23 +210,46 @@ export function computeKpiMetrics(kpi, submissions, now = new Date()) {
     totalUnits = Math.max(1, periodWeekKeys.length);
     elapsedUnits = Math.max(1, periodWeekKeys.filter((w) => w <= currentWeek).length);
     unitLabel = "week";
+
+    // For monthly KPIs, avoid an immediate 0 when current month has no submission yet.
+    // Carry forward the latest available historical submission up to the current period.
+    if (!periodSubmissions.length && frequency === "monthly") {
+      const historicalSubmissions = safeSubmissions.filter((s) => {
+        const w = normalizeWeek(s?.week);
+        if (!w) return false;
+        const weekStart = weekStartDateFromKey(w);
+        return Boolean(weekStart && weekStart <= period.end);
+      });
+
+      const latestHistoricalSubmission = historicalSubmissions.sort((a, b) => {
+        const aWeek = weekStartDateFromKey(normalizeWeek(a?.week) || "")?.getTime() || 0;
+        const bWeek = weekStartDateFromKey(normalizeWeek(b?.week) || "")?.getTime() || 0;
+        if (aWeek !== bWeek) return bWeek - aWeek;
+        return getSubmissionTime(b) - getSubmissionTime(a);
+      })[0];
+
+      if (latestHistoricalSubmission) {
+        periodSubmissions = [latestHistoricalSubmission];
+      }
+    }
   }
 
-  const total = sumValues(periodSubmissions);
-  const perUnitTarget = target / totalUnits;
-  const expectedToDate = perUnitTarget * elapsedUnits;
+  const total = hasForcedTotal ? forcedTotal : sumValues(periodSubmissions);
   const actualProgress = (total / target) * 100;
-  const expectedProgress = (elapsedUnits / totalUnits) * 100;
-  const pace = expectedToDate > 0 ? (total / expectedToDate) * 100 : 0;
   const completion = actualProgress;
 
-  // Status is based on actual vs expected progress, with explicit Completed.
+  // Global status policy: no week-based pacing; evaluate only by target completion.
+  const expectedToDate = target;
+  const expectedProgress = 100;
+  const pace = actualProgress;
+  const perUnitTarget = target;
+
   let status = "Behind";
   if (actualProgress >= 100) {
     status = "Completed";
-  } else if (actualProgress >= expectedProgress) {
+  } else if (actualProgress >= 80) {
     status = "On Track";
-  } else if (actualProgress >= expectedProgress - 10) {
+  } else if (actualProgress >= 60) {
     status = "At Risk";
   }
 
@@ -236,13 +266,15 @@ export function computeKpiMetrics(kpi, submissions, now = new Date()) {
       periodStart: period.start,
       periodEnd: period.end,
       currentWeek,
-      totalUnits,
-      elapsedUnits,
-      unitLabel,
+      totalUnits: 1,
+      elapsedUnits: 1,
+      unitLabel: "target",
       perUnitTarget,
       expectedToDate,
       pace,
-      riskBand: 10,
+      riskBand: 20,
+      dataSource: hasForcedTotal ? String(options?.source || "external") : "submissions",
+      tokenMetricKey: hasForcedTotal ? String(options?.metricKey || "") : "",
     },
   };
 }

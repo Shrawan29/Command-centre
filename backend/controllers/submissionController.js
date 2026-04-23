@@ -3,6 +3,13 @@ import KPI from "../models/KPI.js";
 import mongoose from "mongoose";
 import { collapseWeeklySubmissions, computeKpiMetrics } from "../utils/kpiPerformance.js";
 import { buildKpiPortfolioPdfBuffer, buildKpiPortfolioReportEmail } from "../utils/kpiReportEmail.js";
+import { getCurrentMonthInstagramTokenMetrics } from "../utils/instagramTokenMetrics.js";
+import {
+  buildForcedMetricOptions,
+  buildTokenMeta,
+  getForcedTokenTotal,
+  hasTokenMappedKpi,
+} from "../utils/tokenKpiMapping.js";
 
 function normalizeWeek(value = "") {
   const match = String(value).trim().match(/^(\d{4})-W(\d{1,2})$/i);
@@ -177,7 +184,17 @@ export const getKPIProgress = async (req, res) => {
     const collapsedSubmissions = collapseWeeklySubmissions(submissions)
       .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
-    const metrics = computeKpiMetrics(kpi, collapsedSubmissions);
+    const tokenPayload = hasTokenMappedKpi([kpi])
+      ? await getCurrentMonthInstagramTokenMetrics()
+      : null;
+    const forced = getForcedTokenTotal(kpi, tokenPayload);
+
+    const metrics = computeKpiMetrics(
+      kpi,
+      collapsedSubmissions,
+      new Date(),
+      buildForcedMetricOptions(forced)
+    );
 
     res.status(200).json({
       kpi: kpi.name,
@@ -188,7 +205,10 @@ export const getKPIProgress = async (req, res) => {
       expectedProgress: metrics.expectedProgress.toFixed(2),
       completion: metrics.completion.toFixed(2),
       status: metrics.status,
-      meta: metrics.meta,
+      meta: {
+        ...metrics.meta,
+        tokenMetrics: buildTokenMeta(forced, tokenPayload),
+      },
       submissions: collapsedSubmissions,
     });
   } catch (error) {
