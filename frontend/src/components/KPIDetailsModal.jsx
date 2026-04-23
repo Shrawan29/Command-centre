@@ -29,7 +29,7 @@ export default function KPIDetailsModal({ kpi, onClose }) {
           <div><span className="font-semibold">Target:</span> {kpi.target}</div>
           <div><span className="font-semibold">Status:</span> {kpi.status}</div>
           <div><span className="font-semibold">Due Date:</span> {kpi.dueDate || kpi.deadline || 'Ongoing'}</div>
-          <div><span className="font-semibold">Assigned To:</span> {kpi.assignedToName || kpi.assignedTo}</div>
+          <div><span className="font-semibold">Assigned To:</span> {typeof kpi.assignedTo === 'object' && kpi.assignedTo !== null ? (kpi.assignedTo.name || kpi.assignedTo.email || kpi.assignedTo._id) : (kpi.assignedToName || kpi.assignedTo || '—')}</div>
           <div><span className="font-semibold">Description:</span> {kpi.description || '—'}</div>
         </div>
         <div>
